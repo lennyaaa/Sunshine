@@ -1,10 +1,15 @@
 
 package com.example.android.sunshine;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Fragment;
+import android.preference.PreferenceManager;
 import android.text.format.Time;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -13,8 +18,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -60,28 +67,34 @@ public class ForecastFragment extends Fragment {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         if (id == R.id.action_refresh) {
-            FetchWeatherTask weatherTask = new FetchWeatherTask();
-            weatherTask.execute("wuhan");
+            updateWeather();
             return true;
         }
+        else if(id == R.id.setting) {
+            Toast.makeText(getActivity(), "action_settings", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(getActivity(), SettingsActivity.class);
+            startActivity(intent);
+        }
         return super.onOptionsItemSelected(item);
+    }
+    private void updateWeather() {
+        FetchWeatherTask weatherTask = new FetchWeatherTask();
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = prefs.getString(getString(R.string.pref_location_key),
+                getString(R.string.pref_location_default));
+        weatherTask.execute(location);
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        updateWeather();
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        // Create some dummy data for the ListView.  Here's a sample weekly forecast
-        String[] data = {
-                "Mon 6/23 - Sunny - 31/17",
-                "Tue 6/24 - Foggy - 21/8",
-                "Wed 6/25 - Cloudy - 22/17",
-                "Thurs 6/26 - Rainy - 18/11",
-                "Fri 6/27 - Foggy - 21/10",
-                "Sat 6/28 - TRAPPED IN WEATHERSTATION - 23/18",
-                "Sun 6/29 - Sunny - 20/7"
-        };
-        List<String> weekForecast = new ArrayList<String>(Arrays.asList(data));
 
         // Now that we have some dummy forecast data, create an ArrayAdapter.
         // The ArrayAdapter will take data from a source (like our dummy forecast) and
@@ -91,13 +104,27 @@ public class ForecastFragment extends Fragment {
                         getActivity(), // The current context (this activity)
                         R.layout.list_item_forecast, // The name of the layout ID.
                         R.id.list_item_forecast_textview, // The ID of the textview to populate.
-                        weekForecast);
+                        new ArrayList<String>());
 
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
         // Get a reference to the ListView, and attach this adapter to it.
         ListView listView = (ListView) rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
+
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                String forecast = mForecastAdapter.getItem(position);
+            //    Toast.makeText(getActivity(), forecast, Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(getActivity(), DetailActivity.class)
+                        .putExtra(Intent.EXTRA_TEXT, forecast);
+                Log.v("startActivity", "before");
+                startActivity(intent);
+                Log.v("startActivity", "after");
+
+            }
+        });
 
         return rootView;
     }
@@ -212,6 +239,7 @@ public class ForecastFragment extends Fragment {
             if (params.length == 0) {
                 return null;
             }
+            Log.v("doInBackground", "3");
 
             // These two need to be declared outside the try/catch
             // so that they can be closed in the finally block.
@@ -225,6 +253,7 @@ public class ForecastFragment extends Fragment {
             String units = "metric";
             int numDays = 7;
 
+            Log.v("doInBackground", "4");
             try {
                 // Construct the URL for the OpenWeatherMap query
                 // Possible parameters are avaiable at OWM's forecast API page, at
@@ -249,19 +278,30 @@ public class ForecastFragment extends Fragment {
 
                 Log.v(LOG_TAG, "Built URI " + builtUri.toString());
 
+                Log.v(LOG_TAG, "Built URI " + "0");
                 // Create the request to OpenWeatherMap, and open the connection
                 urlConnection = (HttpURLConnection) url.openConnection();
+                Log.v(LOG_TAG, "Built URI " + "01");
                 urlConnection.setRequestMethod("GET");
-                urlConnection.connect();
+                Log.v(LOG_TAG, "Built URI " + "02");
+                try {
+                    urlConnection.connect();
+                }catch (IOException e)
+                {
+                    Log.v(LOG_TAG, "IOException " + e);
+                }
+                Log.v(LOG_TAG, "Built URI " + "1");
 
                 // Read the input stream into a String
                 InputStream inputStream = urlConnection.getInputStream();
                 StringBuffer buffer = new StringBuffer();
+                Log.v(LOG_TAG, "Built URI " + "2");
                 if (inputStream == null) {
                     // Nothing to do.
                     return null;
                 }
                 reader = new BufferedReader(new InputStreamReader(inputStream));
+                Log.v(LOG_TAG, "Built URI " + "3");
 
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -270,6 +310,7 @@ public class ForecastFragment extends Fragment {
                     // buffer for debugging.
                     buffer.append(line + "\n");
                 }
+                Log.v(LOG_TAG, "Built URI " + "4");
 
                 if (buffer.length() == 0) {
                     // Stream was empty.  No point in parsing.
